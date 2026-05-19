@@ -16,6 +16,13 @@ module.exports = buildSchema(`
     createdAt: String!
   }
 
+  type Comment {
+    _id: ID!
+    body: String!
+    author: User!
+    createdAt: String!
+  }
+
   type Post {
     _id: ID!
     title: String!
@@ -27,6 +34,8 @@ module.exports = buildSchema(`
     likesCount: Int!
     createdAt: String!
     updatedAt: String!
+
+    comments: [Comment!]!
   }
 
   type AuthPayload {
@@ -78,6 +87,13 @@ module.exports = buildSchema(`
     createPost(input: CreatePostInput!): Post!
     updatePost(id: ID!, input: CreatePostInput!): Post!
     deletePost(id: ID!): Boolean!
+
+
+    addComment(postId: ID!, body: String!): Post!
+    deleteComment(postId: ID!, commentId: ID!): Post!
+
+    publishPost(id: ID!): Post!
+    unpublishPost(id: ID!): Post!
   }
 
 `);

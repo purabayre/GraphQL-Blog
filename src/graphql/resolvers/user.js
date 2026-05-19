@@ -27,7 +27,7 @@ const userResolvers = {
     return user;
   },
 
-  posts: async (parent) => {
+  postsByUser: async (parent) => {
     return await Post.find({
       author: parent._id,
     });

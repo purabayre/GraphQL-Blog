@@ -4,6 +4,6 @@ const userResolvers = require("./user");
 
 module.exports = {
   ...authResolvers,
-  ...postResolvers,
   ...userResolvers,
+  ...postResolvers,
 };
