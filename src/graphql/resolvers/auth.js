@@ -11,7 +11,7 @@ const generateToken = (userId) => {
 };
 
 const authResolvers = {
-  register: async ({ input }) => {
+  register: async ({ input }, context) => {
     const { name, email, password } = input;
 
     const errors = [];
@@ -54,7 +54,7 @@ const authResolvers = {
     };
   },
 
-  login: async ({ email, password }) => {
+  login: async ({ email, password }, context) => {
     const user = await User.findOne({ email });
 
     if (!user) {

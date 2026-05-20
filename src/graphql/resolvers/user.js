@@ -5,17 +5,27 @@ const requireAuth = require("../../utils/requireAuth");
 const AppError = require("../../utils/AppError");
 
 const userResolvers = {
-  user: async ({ id }) => {
+  user: async ({ id }, context) => {
     const user = await User.findById(id);
 
     if (!user) {
       throw new AppError("User not found", "NOT_FOUND", 404);
     }
 
+    const postsQuery = { author: user._id, status: "PUBLISHED" };
+
+    if (context.userId && context.userId.toString() === user._id.toString()) {
+      delete postsQuery.status;
+    }
+
+    user.posts = await Post.find(postsQuery)
+      .populate("author")
+      .populate("comments.author");
+
     return user;
   },
 
-  me: async (args, context) => {
+  me: async (_, context) => {
     requireAuth(context);
 
     const user = await User.findById(context.userId);
@@ -24,13 +34,11 @@ const userResolvers = {
       throw new AppError("User not found", "NOT_FOUND", 404);
     }
 
-    return user;
-  },
+    user.posts = await Post.find({ author: user._id })
+      .populate("author")
+      .populate("comments.author");
 
-  postsByUser: async (parent) => {
-    return await Post.find({
-      author: parent._id,
-    });
+    return user;
   },
 };
 

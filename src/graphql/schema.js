@@ -31,11 +31,10 @@ module.exports = buildSchema(`
     status: PostStatus!
     tags: [String!]!
     author: User!
+    comments: [Comment!]!
     likesCount: Int!
     createdAt: String!
     updatedAt: String!
-
-    comments: [Comment!]!
   }
 
   type AuthPayload {
@@ -56,7 +55,6 @@ module.exports = buildSchema(`
     me: User!
 
     post(id: ID!): Post!
-
     posts(
       page: Int
       limit: Int
@@ -64,6 +62,7 @@ module.exports = buildSchema(`
       tag: String
       search: String
     ): PaginatedPosts!
+    myPosts(page: Int, limit: Int, status: PostStatus): PaginatedPosts!
   }
 
   input RegisterInput {
@@ -80,20 +79,28 @@ module.exports = buildSchema(`
     status: PostStatus
   }
 
+  input UpdatePostInput {
+    title: String
+    content: String
+    imageUrl: String
+    tags: [String!]
+    status: PostStatus
+  }
+
   type Mutation {
     register(input: RegisterInput!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
 
     createPost(input: CreatePostInput!): Post!
-    updatePost(id: ID!, input: CreatePostInput!): Post!
+    updatePost(id: ID!, input: UpdatePostInput!): Post!
     deletePost(id: ID!): Boolean!
-
-
-    addComment(postId: ID!, body: String!): Post!
-    deleteComment(postId: ID!, commentId: ID!): Post!
-
     publishPost(id: ID!): Post!
     unpublishPost(id: ID!): Post!
+
+    addComment(postId: ID!, body: String!): Comment!
+    deleteComment(postId: ID!, commentId: ID!): Boolean!
+
+    likePost(postId: ID!): Post!
   }
 
 `);

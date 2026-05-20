@@ -2,33 +2,45 @@ const mongoose = require("mongoose");
 
 const postSchema = new mongoose.Schema(
   {
-    title: String,
-    content: String,
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    content: {
+      type: String,
+      required: true,
+    },
     imageUrl: String,
     status: {
       type: String,
       enum: ["DRAFT", "PUBLISHED"],
       default: "DRAFT",
     },
-    tags: [String],
-
+    tags: {
+      type: [String],
+      default: [],
+    },
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
-
     likes: [String],
-
     comments: [
       {
         _id: {
           type: mongoose.Schema.Types.ObjectId,
           default: () => new mongoose.Types.ObjectId(),
         },
-        body: String,
+        body: {
+          type: String,
+          required: true,
+        },
         author: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          required: true,
         },
         createdAt: {
           type: Date,
@@ -40,7 +52,6 @@ const postSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// likesCount virtual
 postSchema.virtual("likesCount").get(function () {
   return this.likes ? this.likes.length : 0;
 });
