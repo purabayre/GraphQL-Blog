@@ -11,11 +11,12 @@ const authResolvers = {
   hello: () => "Hello from GraphQL Blog API",
   register: async ({ input }, context) => {
     const { name, email, password } = input;
+    const normalizedEmail = email ? email.trim().toLowerCase() : "";
     const errors = [];
     if (!name || name.trim().length < 2) {
       errors.push("Name must be at least 2 characters");
     }
-    if (!validator.isEmail(email)) {
+    if (!validator.isEmail(normalizedEmail)) {
       errors.push("Invalid email");
     }
     if (!password || password.length < 6) {
@@ -24,7 +25,7 @@ const authResolvers = {
     if (errors.length > 0) {
       throw new AppError("Validation failed", "BAD_USER_INPUT", 400, errors);
     }
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
       throw new AppError("Email already exists", "BAD_USER_INPUT", 400);
@@ -32,8 +33,8 @@ const authResolvers = {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: normalizedEmail,
       passwordHash,
     });
     const token = generateToken(user._id.toString());
@@ -44,7 +45,8 @@ const authResolvers = {
   },
 
   login: async ({ email, password }, context) => {
-    const user = await User.findOne({ email });
+    const normalizedEmail = email ? email.trim().toLowerCase() : "";
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       throw new AppError("Invalid credentials", "UNAUTHENTICATED", 401);
     }

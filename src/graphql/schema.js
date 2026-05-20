@@ -94,6 +94,7 @@ module.exports = buildSchema(`
     createPost(input: CreatePostInput!): Post!
     updatePost(id: ID!, input: UpdatePostInput!): Post!
     deletePost(id: ID!): Boolean!
+    
     publishPost(id: ID!): Post!
     unpublishPost(id: ID!): Post!
 
