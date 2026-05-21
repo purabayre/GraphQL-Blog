@@ -8,7 +8,6 @@ const generateToken = (userId) => {
 };
 
 const authResolvers = {
-  hello: () => "Hello from GraphQL Blog API",
   register: async ({ input }, context) => {
     const { name, email, password } = input;
     const normalizedEmail = email ? email.trim().toLowerCase() : "";

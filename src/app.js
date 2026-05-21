@@ -13,6 +13,25 @@ const app = express();
 
 connectDB();
 
+const formatGraphQLError = (error) => {
+  const extensions = error.extensions || {};
+
+  return {
+    message: error.message,
+    extensions: {
+      code: extensions.code || "INTERNAL_SERVER_ERROR",
+      statusCode: extensions.statusCode || 500,
+      details: extensions.details || [],
+    },
+  };
+};
+
+const statusFromErrors = (errors = []) => {
+  return errors.reduce((statusCode, error) => {
+    return error.extensions?.statusCode || statusCode;
+  }, 500);
+};
+
 app.use(cors());
 app.use(express.json());
 app.use(jwtAuth);
@@ -31,16 +50,24 @@ app.use(
     context: (req) => ({
       userId: req.raw.userId,
     }),
-    customFormatErrorFn: (error) => {
-      const extensions = error.extensions || {};
-      return {
-        message: error.message,
-        extensions: {
-          code: extensions.code || "INTERNAL_SERVER_ERROR",
-          statusCode: extensions.statusCode || 500,
-          details: extensions.details || [],
+    formatError: formatGraphQLError,
+    onOperation: (_req, _args, result) => {
+      if (!result.errors?.length) return;
+
+      const statusCode = statusFromErrors(result.errors);
+      return [
+        JSON.stringify({
+          ...result,
+          errors: result.errors.map(formatGraphQLError),
+        }),
+        {
+          status: statusCode,
+          statusText: statusCode >= 500 ? "Internal Server Error" : "Error",
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
         },
-      };
+      ];
     },
   }),
 );

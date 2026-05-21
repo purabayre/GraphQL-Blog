@@ -4,6 +4,7 @@ const AppError = require("../../utils/AppError");
 const requireAuth = require("../../utils/requireAuth");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const validatePostInput = (input, isUpdate = false) => {
   const errors = [];
@@ -21,6 +22,33 @@ const validatePostInput = (input, isUpdate = false) => {
     errors.push("Tags must be an array of strings");
   }
   return errors;
+};
+
+const normalizePagination = ({ page = 1, limit = 10 } = {}) => {
+  const errors = [];
+  const normalizedPage = Number(page);
+  const normalizedLimit = Number(limit);
+
+  if (!Number.isInteger(normalizedPage) || normalizedPage < 1) {
+    errors.push("Page must be a positive integer");
+  }
+
+  if (
+    !Number.isInteger(normalizedLimit) ||
+    normalizedLimit < 1 ||
+    normalizedLimit > 50
+  ) {
+    errors.push("Limit must be an integer between 1 and 50");
+  }
+
+  if (errors.length > 0) {
+    throw new AppError("Validation failed", "BAD_USER_INPUT", 400, errors);
+  }
+
+  return {
+    page: normalizedPage,
+    limit: normalizedLimit,
+  };
 };
 
 const buildPostsQuery = (args, context, options = {}) => {
@@ -46,29 +74,54 @@ const buildPostsQuery = (args, context, options = {}) => {
     query.tags = tag;
   }
   if (search) {
+    const pattern = escapeRegex(search.trim());
     query.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { content: { $regex: search, $options: "i" } },
+      { title: { $regex: pattern, $options: "i" } },
+      { content: { $regex: pattern, $options: "i" } },
     ];
   }
   return query;
 };
 
+const pagePaginate = async (query, page = 1, limit = 10) => {
+  const skip = (page - 1) * limit;
+  const [posts, totalCount] = await Promise.all([
+    Post.find(query)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("author")
+      .populate("comments.author"),
+    Post.countDocuments(query),
+  ]);
+
+  return {
+    posts,
+    totalCount,
+    hasNextPage: page * limit < totalCount,
+  };
+};
+
 const cursorPaginate = async (query, after, first = 5) => {
+  if (after && !isValidObjectId(after)) {
+    throw new AppError("Invalid cursor", "BAD_USER_INPUT", 400);
+  }
+
+  const { limit } = normalizePagination({ page: 1, limit: first });
   const mongoQuery = { ...query };
 
   if (after) {
-    mongoQuery._id = { $lt: mongoose.Types.ObjectId(after) };
+    mongoQuery._id = { $lt: new mongoose.Types.ObjectId(after) };
   }
 
   const posts = await Post.find(mongoQuery)
     .sort({ _id: -1 })
-    .limit(first + 1)
+    .limit(limit + 1)
     .populate("author")
     .populate("comments.author");
 
-  const hasNextPage = posts.length > first;
-  const slicedPosts = hasNextPage ? posts.slice(0, first) : posts;
+  const hasNextPage = posts.length > limit;
+  const slicedPosts = hasNextPage ? posts.slice(0, limit) : posts;
 
   const edges = slicedPosts.map((post) => ({
     cursor: post._id.toString(),
@@ -91,9 +144,16 @@ const postResolvers = {
     if (!isValidObjectId(postId)) {
       throw new AppError("Invalid post ID", "BAD_USER_INPUT", 400);
     }
+    const { limit: normalizedLimit } = normalizePagination({ page: 1, limit });
 
     const basePost = await Post.findById(postId);
     if (!basePost) {
+      throw new AppError("Post not found", "NOT_FOUND", 404);
+    }
+    if (
+      basePost.status === "DRAFT" &&
+      (!context.userId || basePost.author.toString() !== context.userId)
+    ) {
       throw new AppError("Post not found", "NOT_FOUND", 404);
     }
 
@@ -117,7 +177,7 @@ const postResolvers = {
 
     const posts = await Post.find(query)
       .sort({ _id: -1 })
-      .limit(limit)
+      .limit(normalizedLimit)
       .populate("author")
       .populate("comments.author");
 
@@ -144,6 +204,23 @@ const postResolvers = {
   },
 
   posts: async (args, context) => {
+    const { page, limit } = normalizePagination(args);
+    const { status, tag, search } = args || {};
+    const query = buildPostsQuery({ status, tag, search }, context);
+    if (!query)
+      return { posts: [], totalCount: 0, hasNextPage: false };
+    return await pagePaginate(query, page, limit);
+  },
+
+  myPosts: async (args, context) => {
+    requireAuth(context);
+    const { page, limit } = normalizePagination(args);
+    const { status } = args || {};
+    const query = buildPostsQuery({ status }, context, { forMyPosts: true });
+    return await pagePaginate(query, page, limit);
+  },
+
+  postsConnection: async (args, context) => {
     const { after, first = 5, status, tag, search } = args || {};
     const query = buildPostsQuery({ status, tag, search }, context);
     if (!query)
@@ -151,7 +228,7 @@ const postResolvers = {
     return await cursorPaginate(query, after, first);
   },
 
-  myPosts: async (args, context) => {
+  myPostsConnection: async (args, context) => {
     requireAuth(context);
     const { after, first = 5, status } = args || {};
     const query = buildPostsQuery({ status }, context, { forMyPosts: true });
@@ -271,6 +348,9 @@ const postResolvers = {
     }
     const post = await Post.findById(postId);
     if (!post) {
+      throw new AppError("Post not found", "NOT_FOUND", 404);
+    }
+    if (post.status === "DRAFT" && post.author.toString() !== context.userId) {
       throw new AppError("Post not found", "NOT_FOUND", 404);
     }
     const userId = context.userId;

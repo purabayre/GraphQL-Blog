@@ -42,6 +42,14 @@ module.exports = buildSchema(`
     userId: String!
   }
 
+
+
+  type PaginatedPosts {
+    posts: [Post!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+  }
+
   # Cursor-based pagination types
   type PostEdge {
     cursor: ID!
@@ -59,15 +67,27 @@ module.exports = buildSchema(`
   }
 
   type Query {
-    hello: String!
-
     user(id: ID!): User!
     me: User!
 
     post(id: ID!): Post!
 
-    # Cursor-based pagination
     posts(
+      page: Int
+      limit: Int
+      status: PostStatus
+      tag: String
+      search: String
+    ): PaginatedPosts!
+
+    myPosts(
+      page: Int
+      limit: Int
+      status: PostStatus
+    ): PaginatedPosts!
+
+    # Bonus cursor-based pagination
+    postsConnection(
       after: ID
       first: Int
       status: PostStatus
@@ -75,11 +95,13 @@ module.exports = buildSchema(`
       search: String
     ): PostConnection!
 
-    myPosts(
+    myPostsConnection(
       after: ID
       first: Int
       status: PostStatus
     ): PostConnection!
+
+    relatedPosts(postId: ID!, limit: Int): [Post!]!
   }
 
   input RegisterInput {
@@ -127,10 +149,4 @@ module.exports = buildSchema(`
 
     updateMe(input: UpdateMeInput!): User!
   }
-
-  extend type Query {
-    relatedPosts(postId: ID!, limit: Int): [Post!]!
-  }
-
-
 `);

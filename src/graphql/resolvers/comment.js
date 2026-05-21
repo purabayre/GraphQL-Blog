@@ -20,6 +20,9 @@ const commentResolvers = {
     if (!post) {
       throw new AppError("Post not found", "NOT_FOUND", 404);
     }
+    if (post.status === "DRAFT" && post.author.toString() !== context.userId) {
+      throw new AppError("Post not found", "NOT_FOUND", 404);
+    }
     const comment = {
       body: body.trim(),
       author: context.userId,

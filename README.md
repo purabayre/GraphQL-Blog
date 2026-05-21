@@ -19,6 +19,8 @@ A headless blog platform exposed through a GraphQL API and a REST upload endpoin
 
 - GraphQL endpoint: `http://localhost:3000/graphql`
 - GraphiQL interface is enabled in non-production mode.
+- `posts` and `myPosts` use page/limit pagination and return `posts`, `totalCount`, and `hasNextPage`.
+- Bonus cursor pagination is available through `postsConnection` and `myPostsConnection`.
 - Send authentication with the HTTP header:
   ```json
   {

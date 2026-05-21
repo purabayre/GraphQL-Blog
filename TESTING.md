@@ -192,24 +192,67 @@ mutation {
 
 ---
 
-## 3. posts query with tag + search filters (cursor pagination)
+## 3. posts query with tag + search filters
 
 **Query:**
 
 ```graphql
 query {
-  posts(tag: "intro", search: "first", first: 5) {
+  posts(page: 1, limit: 5, tag: "intro", search: "first") {
+    posts {
+      _id
+      title
+      status
+      tags
+      author {
+        name
+      }
+      likesCount
+    }
+    totalCount
+    hasNextPage
+  }
+}
+```
+
+**Expected Response:**
+
+```json
+{
+  "data": {
+    "posts": {
+      "posts": [
+        {
+          "_id": "<post-id>",
+          "title": "My First Post",
+          "status": "PUBLISHED",
+          "tags": ["intro"],
+          "author": {
+            "name": "Jane Doe"
+          },
+          "likesCount": 0
+        }
+      ],
+      "totalCount": 1,
+      "hasNextPage": false
+    }
+  }
+}
+```
+
+### optional cursor pagination bonus
+
+**Query:**
+
+```graphql
+query {
+  postsConnection(tag: "intro", search: "first", first: 5) {
     edges {
       cursor
       node {
         _id
         title
         status
-        tags
-        author {
-          name
-        }
-        likesCount
       }
     }
     pageInfo {
@@ -225,19 +268,14 @@ query {
 ```json
 {
   "data": {
-    "posts": {
+    "postsConnection": {
       "edges": [
         {
           "cursor": "<cursor>",
           "node": {
             "_id": "<post-id>",
             "title": "My First Post",
-            "status": "PUBLISHED",
-            "tags": ["intro"],
-            "author": {
-              "name": "Jane Doe"
-            },
-            "likesCount": 0
+            "status": "PUBLISHED"
           }
         }
       ],

@@ -32,4 +32,15 @@ const userSchema = new mongoose.Schema(
   },
 );
 
+userSchema.methods.posts = async function (_args, context) {
+  const Post = require("./Post");
+  const query = { author: this._id, status: "PUBLISHED" };
+
+  if (context?.userId && context.userId.toString() === this._id.toString()) {
+    delete query.status;
+  }
+
+  return Post.find(query).populate("author").populate("comments.author");
+};
+
 module.exports = mongoose.model("User", userSchema);
