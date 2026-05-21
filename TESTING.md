@@ -1,5 +1,7 @@
 # GraphQL Blog API Testing
 
+This document lists the required GraphiQL operations and expected outputs for the GraphQL Blog Platform API.
+
 ## 1. register + login
 
 ### register mutation
@@ -21,23 +23,18 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "register": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "userId": "507f1f77bcf86cd799439011"
+      "token": "<jwt-token>",
+      "userId": "<user-id>"
     }
   }
 }
 ```
-
-**Notes:**
-
-- Token is a valid JWT that can be used in subsequent requests
-- userId is the MongoDB ObjectId of the newly created user
 
 ### login mutation
 
@@ -52,20 +49,20 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "login": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "userId": "507f1f77bcf86cd799439011"
+      "token": "<jwt-token>",
+      "userId": "<user-id>"
     }
   }
 }
 ```
 
-**Error Response (invalid credentials, 401):**
+**Error Response (invalid credentials):**
 
 ```json
 {
@@ -93,8 +90,8 @@ mutation {
 mutation {
   createPost(
     input: {
-      title: "First Post"
-      content: "This is the body of the first post."
+      title: "My First Post"
+      content: "This is the body of my first post."
       tags: ["intro"]
       status: PUBLISHED
     }
@@ -114,21 +111,21 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "createPost": {
-      "_id": "507f1f77bcf86cd799439012",
-      "title": "First Post",
-      "content": "This is the body of the first post.",
+      "_id": "<post-id>",
+      "title": "My First Post",
+      "content": "This is the body of my first post.",
       "status": "PUBLISHED",
       "tags": ["intro"],
       "imageUrl": null,
       "likesCount": 0,
       "author": {
-        "_id": "507f1f77bcf86cd799439011",
+        "_id": "<user-id>",
         "name": "Jane Doe"
       }
     }
@@ -137,8 +134,6 @@ mutation {
 ```
 
 ### create post with image
-
-**Prerequisites:** First upload an image via REST endpoint:
 
 **REST Upload:**
 
@@ -151,15 +146,15 @@ Form Data:
   image: <binary-file>
 ```
 
-**Upload Response (201 Created):**
+**Upload Response:**
 
 ```json
 {
-  "imageUrl": "/uploads/images/1716230400000-123456789.jpg"
+  "imageUrl": "/uploads/images/<filename>.jpg"
 }
 ```
 
-**Query (with imageUrl):**
+**Query:**
 
 ```graphql
 mutation {
@@ -167,7 +162,7 @@ mutation {
     input: {
       title: "Post with Image"
       content: "This post has a featured image."
-      imageUrl: "/uploads/images/1716230400000-123456789.jpg"
+      imageUrl: "/uploads/images/<filename>.jpg"
       tags: ["image", "feature"]
       status: PUBLISHED
     }
@@ -180,15 +175,15 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "createPost": {
-      "_id": "507f1f77bcf86cd799439013",
+      "_id": "<post-id>",
       "title": "Post with Image",
-      "imageUrl": "/uploads/images/1716230400000-123456789.jpg",
+      "imageUrl": "/uploads/images/<filename>.jpg",
       "tags": ["image", "feature"]
     }
   }
@@ -197,49 +192,59 @@ mutation {
 
 ---
 
-## 3. posts query with tag + search filters
-
-### combined tag and search filter
+## 3. posts query with tag + search filters (cursor pagination)
 
 **Query:**
 
 ```graphql
 query {
-  posts(tag: "intro", search: "first", page: 1, limit: 5) {
-    totalCount
-    hasNextPage
-    posts {
-      _id
-      title
-      status
-      tags
-      author {
-        name
+  posts(tag: "intro", search: "first", first: 5) {
+    edges {
+      cursor
+      node {
+        _id
+        title
+        status
+        tags
+        author {
+          name
+        }
+        likesCount
       }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
     }
   }
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "posts": {
-      "totalCount": 1,
-      "hasNextPage": false,
-      "posts": [
+      "edges": [
         {
-          "_id": "507f1f77bcf86cd799439012",
-          "title": "First Post",
-          "status": "PUBLISHED",
-          "tags": ["intro"],
-          "author": {
-            "name": "Jane Doe"
+          "cursor": "<cursor>",
+          "node": {
+            "_id": "<post-id>",
+            "title": "My First Post",
+            "status": "PUBLISHED",
+            "tags": ["intro"],
+            "author": {
+              "name": "Jane Doe"
+            },
+            "likesCount": 0
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "<cursor>",
+        "hasNextPage": false
+      }
     }
   }
 }
@@ -255,10 +260,7 @@ query {
 
 ```graphql
 mutation {
-  updatePost(
-    id: "507f1f77bcf86cd799439012"
-    input: { title: "Updated Title" }
-  ) {
+  updatePost(id: "<post-id>", input: { title: "Updated Title" }) {
     _id
     title
     updatedAt
@@ -266,15 +268,15 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "updatePost": {
-      "_id": "507f1f77bcf86cd799439012",
+      "_id": "<post-id>",
       "title": "Updated Title",
-      "updatedAt": "2026-05-20T10:30:45.123Z"
+      "updatedAt": "<timestamp>"
     }
   }
 }
@@ -282,9 +284,7 @@ mutation {
 
 ### non-owner update (forbidden)
 
-**Scenario:** Different user (different token) attempts to update the post
-
-**Expected Response (200 with GraphQL error):**
+**Expected Response:**
 
 ```json
 {
@@ -310,62 +310,51 @@ mutation {
 
 ```graphql
 mutation {
-  likePost(postId: "507f1f77bcf86cd799439012") {
+  likePost(postId: "<post-id>") {
     _id
     likesCount
-    author {
-      name
-    }
   }
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "likePost": {
-      "_id": "507f1f77bcf86cd799439012",
-      "likesCount": 1,
-      "author": {
-        "name": "Jane Doe"
-      }
+      "_id": "<post-id>",
+      "likesCount": 1
     }
   }
 }
 ```
 
-### second call - remove like (toggle)
+### second call - remove like
 
-**Query (same as above):**
+**Query:**
 
 ```graphql
 mutation {
-  likePost(postId: "507f1f77bcf86cd799439012") {
+  likePost(postId: "<post-id>") {
     _id
     likesCount
   }
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "likePost": {
-      "_id": "507f1f77bcf86cd799439012",
+      "_id": "<post-id>",
       "likesCount": 0
     }
   }
 }
 ```
-
-**Notes:**
-
-- likesCount went from 1 to 0, confirming the like was removed
-- Calling again would add it back
 
 ---
 
@@ -377,7 +366,7 @@ mutation {
 
 ```graphql
 mutation {
-  addComment(postId: "507f1f77bcf86cd799439012", body: "Nice post!") {
+  addComment(postId: "<post-id>", body: "Nice post!") {
     _id
     body
     createdAt
@@ -389,17 +378,17 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "addComment": {
-      "_id": "507f1f77bcf86cd799439014",
+      "_id": "<comment-id>",
       "body": "Nice post!",
-      "createdAt": "2026-05-20T10:35:20.000Z",
+      "createdAt": "<timestamp>",
       "author": {
-        "_id": "507f1f77bcf86cd799439011",
+        "_id": "<user-id>",
         "name": "Jane Doe"
       }
     }
@@ -407,20 +396,17 @@ mutation {
 }
 ```
 
-### delete own comment (success)
+### delete own comment
 
 **Query:**
 
 ```graphql
 mutation {
-  deleteComment(
-    postId: "507f1f77bcf86cd799439012"
-    commentId: "507f1f77bcf86cd799439014"
-  )
+  deleteComment(commentId: "<comment-id>")
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
@@ -432,9 +418,7 @@ mutation {
 
 ### delete someone else's comment (forbidden)
 
-**Scenario:** User attempts to delete a comment they did not write
-
-**Expected Response (200 with GraphQL error):**
+**Expected Response:**
 
 ```json
 {
@@ -454,9 +438,7 @@ mutation {
 
 ## 7. protected mutation without authentication token
 
-### createPost without token
-
-**Query (no Authorization header):**
+**Query:**
 
 ```graphql
 mutation {
@@ -468,7 +450,7 @@ mutation {
 }
 ```
 
-**Expected Response (200 with GraphQL error):**
+**Expected Response:**
 
 ```json
 {
@@ -484,31 +466,22 @@ mutation {
 }
 ```
 
-### other protected mutations without token
-
-All of these should return `UNAUTHENTICATED` (401):
-
-- `updatePost`
-- `deletePost`
-- `publishPost`
-- `unpublishPost`
-- `likePost`
-- `addComment`
-- `deleteComment`
-- `myPosts` query
-
 ---
 
-## 8. publishPost - change status from DRAFT to PUBLISHED
+## 8. publishPost on a draft
 
-### create draft post first
+### create draft post
 
 **Query:**
 
 ```graphql
 mutation {
   createPost(
-    input: { title: "Draft Post", content: "This is a draft.", status: DRAFT }
+    input: {
+      title: "Draft Post"
+      content: "This is a draft post."
+      status: DRAFT
+    }
   ) {
     _id
     status
@@ -516,26 +489,26 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "createPost": {
-      "_id": "507f1f77bcf86cd799439015",
+      "_id": "<draft-post-id>",
       "status": "DRAFT"
     }
   }
 }
 ```
 
-### publish the draft post
+### publish draft
 
 **Query:**
 
 ```graphql
 mutation {
-  publishPost(id: "507f1f77bcf86cd799439015") {
+  publishPost(id: "<draft-post-id>") {
     _id
     status
     updatedAt
@@ -543,43 +516,15 @@ mutation {
 }
 ```
 
-**Expected Response (200 OK):**
+**Expected Response:**
 
 ```json
 {
   "data": {
     "publishPost": {
-      "_id": "507f1f77bcf86cd799439015",
+      "_id": "<draft-post-id>",
       "status": "PUBLISHED",
-      "updatedAt": "2026-05-20T10:40:00.000Z"
-    }
-  }
-}
-```
-
-### unpublish back to draft
-
-**Query:**
-
-```graphql
-mutation {
-  unpublishPost(id: "507f1f77bcf86cd799439015") {
-    _id
-    status
-    updatedAt
-  }
-}
-```
-
-**Expected Response (200 OK):**
-
-```json
-{
-  "data": {
-    "unpublishPost": {
-      "_id": "507f1f77bcf86cd799439015",
-      "status": "DRAFT",
-      "updatedAt": "2026-05-20T10:40:15.000Z"
+      "updatedAt": "<timestamp>"
     }
   }
 }
@@ -587,30 +532,28 @@ mutation {
 
 ---
 
-## How to Test in GraphiQL
+## GraphiQL Testing Instructions
 
-1. Open `http://localhost:3000/graphql` in your browser
-2. For authenticated requests, add a headers panel with:
+1. Open `http://localhost:3000/graphql`
+2. Use the GraphiQL headers pane for authenticated queries:
 
 ```json
 {
-  "Authorization": "Bearer <your-jwt-token>"
+  "Authorization": "Bearer <token>"
 }
 ```
 
-3. Copy and paste each query/mutation into the editor
-4. Click "Play" or press Ctrl+Enter to execute
-5. Check the response in the right panel
+3. Execute the queries and verify the responses.
 
-## Summary of Test Coverage
+## Summary of Required Tests
 
-| Test | Scenario                         | Status Code |
-| ---- | -------------------------------- | ----------- |
-| 1    | register/login happy path        | 200         |
-| 2    | createPost with/without image    | 200         |
-| 3    | posts query with filters         | 200         |
-| 4    | updatePost owner vs non-owner    | 200/403     |
-| 5    | likePost toggle                  | 200         |
-| 6    | addComment/deleteComment         | 200/403     |
-| 7    | protected mutation without token | 401         |
-| 8    | publishPost/unpublishPost        | 200         |
+| Test | Scenario                         | Expected GraphQL Code |
+| ---- | -------------------------------- | --------------------- |
+| 1    | register + login                 | 200                   |
+| 2    | createPost with/without image    | 200                   |
+| 3    | posts query with filters         | 200                   |
+| 4    | updatePost owner vs non-owner    | 200 / 403             |
+| 5    | likePost toggle                  | 200                   |
+| 6    | addComment + deleteComment       | 200 / 403             |
+| 7    | protected mutation without token | 401                   |
+| 8    | publishPost on a draft           | 200                   |

@@ -25,6 +25,7 @@ const userResolvers = {
 
     return user;
   },
+
   me: async (_, context) => {
     requireAuth(context);
     const user = await User.findById(context.userId);
@@ -34,6 +35,28 @@ const userResolvers = {
     user.posts = await Post.find({ author: user._id })
       .populate("author")
       .populate("comments.author");
+    return user;
+  },
+
+  updateMe: async ({ input }, context) => {
+    requireAuth(context);
+
+    const user = await User.findById(context.userId);
+    if (!user) {
+      throw new AppError("User not found", "NOT_FOUND", 404);
+    }
+
+    // Only update fields provided
+    if (input.name !== undefined) user.name = input.name;
+    if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
+
+    await user.save();
+
+    // Include user's posts
+    user.posts = await Post.find({ author: user._id })
+      .populate("author")
+      .populate("comments.author");
+
     return user;
   },
 };

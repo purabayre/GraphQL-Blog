@@ -32,18 +32,17 @@ const commentResolvers = {
     return savedPost.comments.id(post.comments[post.comments.length - 1]._id);
   },
 
-  deleteComment: async ({ postId, commentId }, context) => {
+  deleteComment: async ({ commentId }, context) => {
     requireAuth(context);
-    if (!isValidObjectId(postId)) {
-      throw new AppError("Invalid post ID", "BAD_USER_INPUT", 400);
-    }
     if (!isValidObjectId(commentId)) {
       throw new AppError("Invalid comment ID", "BAD_USER_INPUT", 400);
     }
-    const post = await Post.findById(postId);
+
+    const post = await Post.findOne({ "comments._id": commentId });
     if (!post) {
-      throw new AppError("Post not found", "NOT_FOUND", 404);
+      throw new AppError("Comment not found", "NOT_FOUND", 404);
     }
+
     const comment = post.comments.id(commentId);
     if (!comment) {
       throw new AppError("Comment not found", "NOT_FOUND", 404);

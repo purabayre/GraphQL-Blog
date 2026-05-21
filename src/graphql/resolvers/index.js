@@ -8,4 +8,8 @@ module.exports = {
   ...userResolvers,
   ...postResolvers,
   ...commentResolvers,
+
+  Query: {
+    ...(postResolvers.Query || {}),
+  },
 };

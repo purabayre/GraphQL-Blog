@@ -4,6 +4,7 @@ const AppError = require("../../utils/AppError");
 const requireAuth = require("../../utils/requireAuth");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
 const validatePostInput = (input, isUpdate = false) => {
   const errors = [];
   if (!isUpdate || input.title !== undefined) {
@@ -53,25 +54,76 @@ const buildPostsQuery = (args, context, options = {}) => {
   return query;
 };
 
-const paginate = async (query, page = 1, limit = 5) => {
-  const skip = (page - 1) * limit;
-  const [posts, totalCount] = await Promise.all([
-    Post.find(query)
-      .populate("author")
-      .populate("comments.author")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    Post.countDocuments(query),
-  ]);
+const cursorPaginate = async (query, after, first = 5) => {
+  const mongoQuery = { ...query };
+
+  if (after) {
+    mongoQuery._id = { $lt: mongoose.Types.ObjectId(after) };
+  }
+
+  const posts = await Post.find(mongoQuery)
+    .sort({ _id: -1 })
+    .limit(first + 1)
+    .populate("author")
+    .populate("comments.author");
+
+  const hasNextPage = posts.length > first;
+  const slicedPosts = hasNextPage ? posts.slice(0, first) : posts;
+
+  const edges = slicedPosts.map((post) => ({
+    cursor: post._id.toString(),
+    node: post,
+  }));
+
+  const endCursor = edges.length > 0 ? edges[edges.length - 1].cursor : null;
+
   return {
-    posts: posts || [],
-    totalCount: totalCount || 0,
-    hasNextPage: skip + posts.length < totalCount,
+    edges,
+    pageInfo: {
+      endCursor,
+      hasNextPage,
+    },
   };
 };
 
 const postResolvers = {
+  relatedPosts: async ({ postId, limit = 5 }, context) => {
+    if (!isValidObjectId(postId)) {
+      throw new AppError("Invalid post ID", "BAD_USER_INPUT", 400);
+    }
+
+    const basePost = await Post.findById(postId);
+    if (!basePost) {
+      throw new AppError("Post not found", "NOT_FOUND", 404);
+    }
+
+    const tags = basePost.tags || [];
+    if (tags.length === 0) return [];
+
+    const query = {
+      _id: { $ne: basePost._id },
+      tags: { $in: tags },
+      status: "PUBLISHED",
+    };
+
+    // If requesting own draft access (author), include their drafts too
+    if (context.userId && basePost.author?.toString?.() === context.userId) {
+      query.$or = [
+        { status: "PUBLISHED" },
+        { status: "DRAFT", author: context.userId },
+      ];
+      delete query.status;
+    }
+
+    const posts = await Post.find(query)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .populate("author")
+      .populate("comments.author");
+
+    return posts;
+  },
+
   post: async ({ id }, context) => {
     if (!isValidObjectId(id)) {
       throw new AppError("Invalid post ID", "BAD_USER_INPUT", 400);
@@ -92,19 +144,18 @@ const postResolvers = {
   },
 
   posts: async (args, context) => {
-    const { page = 1, limit = 5 } = args || {};
-    const query = buildPostsQuery(args, context);
-    if (!query) {
-      return { posts: [], totalCount: 0, hasNextPage: false };
-    }
-    return await paginate(query, page, limit);
+    const { after, first = 5, status, tag, search } = args || {};
+    const query = buildPostsQuery({ status, tag, search }, context);
+    if (!query)
+      return { edges: [], pageInfo: { endCursor: null, hasNextPage: false } };
+    return await cursorPaginate(query, after, first);
   },
 
   myPosts: async (args, context) => {
     requireAuth(context);
-    const { page = 1, limit = 5 } = args || {};
-    const query = buildPostsQuery(args, context, { forMyPosts: true });
-    return await paginate(query, page, limit);
+    const { after, first = 5, status } = args || {};
+    const query = buildPostsQuery({ status }, context, { forMyPosts: true });
+    return await cursorPaginate(query, after, first);
   },
 
   createPost: async ({ input }, context) => {
@@ -125,6 +176,7 @@ const postResolvers = {
       .populate("author")
       .populate("comments.author");
   },
+
   updatePost: async ({ id, input }, context) => {
     requireAuth(context);
     if (!isValidObjectId(id)) {
